@@ -23,10 +23,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore NuGet packages
+      - name: Restore NuGet packages for Windows x64
         shell: pwsh
         run: |
-          dotnet restore "VMUnprotect.Dumper/VMUnprotect.Dumper.csproj"
+          dotnet restore "VMUnprotect.Dumper/VMUnprotect.Dumper.csproj" `
+            --runtime win-x64 `
+            -p:PlatformTarget=x64 `
+            -p:Prefer32Bit=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Release x64
@@ -34,7 +37,9 @@ jobs:
         run: |
           dotnet build "VMUnprotect.Dumper/VMUnprotect.Dumper.csproj" `
             --configuration Release `
+            --runtime win-x64 `
             --no-restore `
+            --output "$env:GITHUB_WORKSPACE/artifacts/bin" `
             -p:PlatformTarget=x64 `
             -p:Prefer32Bit=false `
             -p:ContinuousIntegrationBuild=true
@@ -43,7 +48,7 @@ jobs:
       - name: Verify executable and write SHA256
         shell: pwsh
         run: |
-          $output = "VMUnprotect.Dumper/bin/Release/net472"
+          $output = "$env:GITHUB_WORKSPACE/artifacts/bin"
           $exe = Join-Path $output "VMUnprotect.Dumper.exe"
           if (-not (Test-Path $exe)) { throw "Expected executable was not built: $exe" }
           Get-FileHash -Path $exe -Algorithm SHA256 |
@@ -55,6 +60,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: VMUnprotect-Dumper-net472-win-x64
-          path: VMUnprotect.Dumper/bin/Release/net472/
+          path: artifacts/bin/
           if-no-files-found: error
           retention-days: 14
