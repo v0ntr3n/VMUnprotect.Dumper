@@ -1,0 +1,60 @@
+name: Build Windows x64
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build .NET Framework 4.7.2 (x64)
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          dotnet restore "VMUnprotect.Dumper/VMUnprotect.Dumper.csproj"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release x64
+        shell: pwsh
+        run: |
+          dotnet build "VMUnprotect.Dumper/VMUnprotect.Dumper.csproj" `
+            --configuration Release `
+            --no-restore `
+            -p:PlatformTarget=x64 `
+            -p:Prefer32Bit=false `
+            -p:ContinuousIntegrationBuild=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify executable and write SHA256
+        shell: pwsh
+        run: |
+          $output = "VMUnprotect.Dumper/bin/Release/net472"
+          $exe = Join-Path $output "VMUnprotect.Dumper.exe"
+          if (-not (Test-Path $exe)) { throw "Expected executable was not built: $exe" }
+          Get-FileHash -Path $exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  VMUnprotect.Dumper.exe" } |
+            Set-Content -Encoding ASCII (Join-Path $output "SHA256SUMS.txt")
+          Get-ChildItem -Path $output | Select-Object Name, Length
+
+      - name: Upload Windows x64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: VMUnprotect-Dumper-net472-win-x64
+          path: VMUnprotect.Dumper/bin/Release/net472/
+          if-no-files-found: error
+          retention-days: 14
